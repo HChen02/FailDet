@@ -1,0 +1,68 @@
+# =============================================================================
+# Python requirements for the E2 data-efficiency sweep
+# =============================================================================
+# Tested with Python 3.10.
+# Install order is documented in SETUP.md (some pkgs need --no-deps).
+# =============================================================================
+
+# --- Core ML stack -----------------------------------------------------------
+torch>=2.10                       # bf16 + Blackwell/Ampere/Hopper tensor cores
+torchvision>=0.20                 # used by methods + depth preprocessing
+transformers>=4.45                # DINOv2 + Qwen3.5 (latest main needed for Qwen3.5)
+datasets                          # HuggingFace datasets loader
+accelerate
+peft                              # LoRA adapters
+bitsandbytes                      # 4-bit quantisation for VLM methods (SFT/CL+CE/...)
+safetensors                       # safetensors weight loading
+huggingface_hub                   # hf_hub_download
+
+# --- Unsloth (only used by VLM methods; harmless to install) -----------------
+unsloth                           # latest from pip or github
+trl>=0.12.0                       # SFTTrainer used by SFT/CL+CE
+
+# --- Data + image ------------------------------------------------------------
+Pillow
+numpy
+pandas
+imageio
+imageio_ffmpeg
+
+# --- DA3 / Depth-Anything-3 deps (required for da3_dino_* methods only) ------
+# The Depth-Anything-3 package itself is installed editable from GitHub; see
+# SETUP.md. These are its transitive deps that don't come for free.
+einops
+omegaconf
+addict
+plyfile
+# moviepy <2 is needed because DA3's export module imports moviepy.editor (1.x API)
+moviepy==1.0.3
+decorator
+proglog
+
+# --- Contrastive helpers -----------------------------------------------------
+# pytorch-metric-learning is optional; the project only uses the inline
+# losses/infonce.py for InfoNCE. Keep it commented unless you need SupCon
+# utilities for ablations.
+# pytorch-metric-learning
+
+# Required for dino_clip method only — frozen MiniLM text encoder used as
+# the text branch of the CLIP-style contrastive head. Skip if you drop
+# dino_clip from METHODS.
+sentence-transformers
+
+# --- Evaluation + analysis ---------------------------------------------------
+scikit-learn
+scipy
+matplotlib                        # optional for plotting; required for the
+                                  # depth visualisation step inside the DA3
+                                  # preprocessor (skip if you only run dino_*)
+
+# --- Logging + config --------------------------------------------------------
+tensorboard
+PyYAML
+tqdm
+
+# --- Optional --------------------------------------------------------------
+# Uncomment only if you have a working CUDA build:
+# xformers                          # speeds up attention; required if you use
+                                    # unsloth, optional otherwise

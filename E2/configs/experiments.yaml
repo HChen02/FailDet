@@ -1,0 +1,116 @@
+# Master experiment registry — must-haves (E0–E6) per FINAL_experimental_plan_v7.md.
+#
+# Schema (per entry):
+#   exp_id:          short label from the v7 plan (e.g. "E1.3")
+#   method:          zero_shot | sft | cl_embed | cl_llm | cl_ce | dino_ce | dino_ce_attn | dino_cl | dino_cl_attn | dino_clip
+#   task:            binary | 7class | 8class
+#   dataset_train:   HF repo id of the training split (omit for ZS)
+#   dataset_eval:    HF repo id of the eval split
+#   seeds:           list[int] — one run per seed (expanded by run_experiment.py)
+#   data_fraction:   float in (0,1] — for E2 (uses splits in data/low_data_splits.json)
+#   epochs:          int
+#   batch_size:      int
+#   grad_accum:      int (default 1)
+#   lr:              float
+#   gc_batch_size:   int — CL-Embed only; effective contrastive batch via GradCache
+#   variant:         frozen | lora — DINOv2 methods only
+#   lr_proj / lr_encoder: per-group LRs for DINOv2 contrastive variants
+#
+# 2026-05 final restructure (current line-up — 7 trainable + 1 zero-shot):
+#   - SFT, CL-Embed (full VLM + last-token InfoNCE), CL-LLM (yes/no for
+#     binary, letter-token logits for 7class/8class), CL+CE.
+#   - DINOv2-CE / DINOv2-CL / DINOv2-CLIP — pure-vision and vision-text
+#     baselines on facebook/dinov2-large + sentence-transformers MiniLM.
+#   - CL-FULL, CLIP-CL, and CL-FT retired as documented negative results;
+#     v6 numbers for CL-FT are kept at results/E1_cl_ft_*_seed42.
+
+# ============================================================================
+# E0 — Zero-Shot Baseline (no training)
+# ============================================================================
+E0_ZS_8class_rlbench_test:
+  exp_id: E0
+  method: zero_shot
+  task: 8class
+  dataset_eval: paulpacaud/rlbenchfail_test_dataset
+
+E0_ZS_8class_ur5_test:
+  exp_id: E0
+  method: zero_shot
+  task: 8class
+  dataset_eval: paulpacaud/ur5fail_test_dataset
+
+# ============================================================================
+# E1 — In-Distribution Classification on RLBench-Fail
+# ============================================================================
+# E1.1 — binary (success vs failure)
+E1.1_SFT_binary:           { exp_id: E1.1, method: sft,       task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E1.1_CL_Embed_binary:      { exp_id: E1.1, method: cl_embed,  task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4, gc_batch_size: 512 }
+E1.1_CL_LLM_binary:        { exp_id: E1.1, method: cl_llm,    task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 16, grad_accum: 2, lr: 2.0e-4, gc_batch_size: 0 }
+E1.1_CL_CE_binary:         { exp_id: E1.1, method: cl_ce,     task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4, lambda_contrastive: 0.1, temperature: 1.0 }
+# DINOv2 baselines — frozen variants for the headline E1 binary table.
+E1.1_DINOv2_CE_binary:      { exp_id: E1.1, method: dino_ce,      task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 10, batch_size: 32,  lr: 1.0e-3, variant: frozen }
+E1.1_DINOv2_CE_Attn_binary: { exp_id: E1.1, method: dino_ce_attn, task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 10, batch_size: 32,  lr: 1.0e-3, variant: frozen, attn_pool_heads: 4 }
+E1.1_DINOv2_CL_binary:      { exp_id: E1.1, method: dino_cl,      task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 512, lr_proj: 1.0e-2, variant: frozen }
+E1.1_DINOv2_CL_Attn_binary: { exp_id: E1.1, method: dino_cl_attn, task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 32,  lr_proj: 1.0e-2, variant: frozen, attn_pool_heads: 4 }
+E1.1_DINOv2_CLIP_binary:   { exp_id: E1.1, method: dino_clip, task: binary, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 512, lr_proj: 1.0e-2, variant: frozen }
+
+# E1.2 — 7-class (failures only — success samples filtered at dataloader level)
+E1.2_SFT_7class:           { exp_id: E1.2, method: sft,       task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E1.2_CL_Embed_7class:      { exp_id: E1.2, method: cl_embed,  task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4, gc_batch_size: 512 }
+E1.2_CL_LLM_7class:        { exp_id: E1.2, method: cl_llm,    task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 16, grad_accum: 2, lr: 2.0e-4, gc_batch_size: 0 }
+E1.2_CL_CE_7class:         { exp_id: E1.2, method: cl_ce,     task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4, lambda_contrastive: 0.1, temperature: 1.0 }
+E1.2_DINOv2_CE_7class:      { exp_id: E1.2, method: dino_ce,      task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 10, batch_size: 32,  lr: 1.0e-3, variant: frozen }
+E1.2_DINOv2_CE_Attn_7class: { exp_id: E1.2, method: dino_ce_attn, task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 10, batch_size: 32,  lr: 1.0e-3, variant: frozen, attn_pool_heads: 4 }
+E1.2_DINOv2_CL_7class:      { exp_id: E1.2, method: dino_cl,      task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 512, lr_proj: 1.0e-2, variant: frozen }
+E1.2_DINOv2_CL_Attn_7class: { exp_id: E1.2, method: dino_cl_attn, task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 32,  lr_proj: 1.0e-2, variant: frozen, attn_pool_heads: 4 }
+E1.2_DINOv2_CLIP_7class:   { exp_id: E1.2, method: dino_clip, task: 7class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 512, lr_proj: 1.0e-2, variant: frozen }
+
+# E1.3 — 8-class (full unified vocabulary)
+E1.3_SFT_8class:           { exp_id: E1.3, method: sft,       task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E1.3_CL_Embed_8class:      { exp_id: E1.3, method: cl_embed,  task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4, gc_batch_size: 512 }
+E1.3_CL_LLM_8class:        { exp_id: E1.3, method: cl_llm,    task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 16, grad_accum: 2, lr: 2.0e-4, gc_batch_size: 0 }
+E1.3_CL_CE_8class:         { exp_id: E1.3, method: cl_ce,     task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4, lambda_contrastive: 0.1, temperature: 1.0 }
+E1.3_DINOv2_CE_8class:      { exp_id: E1.3, method: dino_ce,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 10, batch_size: 32,  lr: 1.0e-3, variant: frozen }
+E1.3_DINOv2_CE_Attn_8class: { exp_id: E1.3, method: dino_ce_attn, task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 10, batch_size: 32,  lr: 1.0e-3, variant: frozen, attn_pool_heads: 4 }
+E1.3_DINOv2_CL_8class:      { exp_id: E1.3, method: dino_cl,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 512, lr_proj: 1.0e-2, variant: frozen }
+E1.3_DINOv2_CL_Attn_8class: { exp_id: E1.3, method: dino_cl_attn, task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 32,  lr_proj: 1.0e-2, variant: frozen, attn_pool_heads: 4 }
+E1.3_DINOv2_CLIP_8class:   { exp_id: E1.3, method: dino_clip, task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, seeds: [42, 123, 456], epochs: 30, batch_size: 512, lr_proj: 1.0e-2, variant: frozen }
+
+# ============================================================================
+# E2 — Data efficiency curves (8-class RLBench)
+# ============================================================================
+# Splits live in data/low_data_splits.json; method runners must load them
+# by data_fraction × seed and select the matching index list.
+E2_SFT_1pct:        { exp_id: E2, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, data_fraction: 0.01, seeds: [42, 123, 456], epochs: 30, batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E2_SFT_5pct:        { exp_id: E2, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, data_fraction: 0.05, seeds: [42, 123, 456], epochs: 20, batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E2_SFT_10pct:       { exp_id: E2, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, data_fraction: 0.10, seeds: [42, 123, 456], epochs: 15, batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E2_SFT_25pct:       { exp_id: E2, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, data_fraction: 0.25, seeds: [42, 123, 456], epochs: 10, batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E2_SFT_50pct:       { exp_id: E2, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, data_fraction: 0.50, seeds: [42, 123, 456], epochs: 10, batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+
+E2_CL_Embed_1pct:   { exp_id: E2, method: cl_embed, task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, data_fraction: 0.01, seeds: [42, 123, 456], epochs: 30, batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E2_CL_Embed_5pct:   { exp_id: E2, method: cl_embed, task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, data_fraction: 0.05, seeds: [42, 123, 456], epochs: 20, batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+# (Additional E2 fractions follow the same pattern — fill in as the curve fills out.)
+
+# ============================================================================
+# E3 — Representation analysis (8-class RLBench)
+# ============================================================================
+# E3 reuses E1.3 trained checkpoints for analysis (t-SNE, UMAP, CKA, GradCAM).
+# No additional training entries — see analysis/ for the eval scripts.
+
+# ============================================================================
+# E5 — Sim-to-real domain transfer
+# ============================================================================
+E5.1_SFT_rlbench_to_ur5:      { exp_id: E5.1, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/ur5fail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E5.1_CL_Embed_rlbench_to_ur5: { exp_id: E5.1, method: cl_embed, task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/ur5fail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E5.1_CL_CE_rlbench_to_ur5:    { exp_id: E5.1, method: cl_ce,    task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/ur5fail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4, lambda_contrastive: 0.1, temperature: 1.0 }
+
+E5.3_SFT_bdv2_to_ur5:         { exp_id: E5.3, method: sft,      task: 8class, dataset_train: paulpacaud/bdv2fail_train_dataset,    dataset_eval: paulpacaud/ur5fail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+E5.3_CL_Embed_bdv2_to_ur5:    { exp_id: E5.3, method: cl_embed, task: 8class, dataset_train: paulpacaud/bdv2fail_train_dataset,    dataset_eval: paulpacaud/ur5fail_test_dataset, seeds: [42, 123, 456], epochs: 2,  batch_size: 4,  grad_accum: 4, lr: 2.0e-4 }
+
+# ============================================================================
+# E6 — OOD detection (held-out class, 8-class RLBench)
+# ============================================================================
+E6_SFT_holdout_slip:           { exp_id: E6, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, holdout_class: slip,           seeds: [42, 123, 456], epochs: 2, batch_size: 4, grad_accum: 4, lr: 2.0e-4 }
+E6_SFT_holdout_rotation:       { exp_id: E6, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, holdout_class: rotation,       seeds: [42, 123, 456], epochs: 2, batch_size: 4, grad_accum: 4, lr: 2.0e-4 }
+E6_SFT_holdout_wrong_sequence: { exp_id: E6, method: sft,      task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, holdout_class: wrong_sequence, seeds: [42, 123, 456], epochs: 2, batch_size: 4, grad_accum: 4, lr: 2.0e-4 }
+E6_CL_CE_holdout_slip:         { exp_id: E6, method: cl_ce,    task: 8class, dataset_train: paulpacaud/rlbenchfail_train_dataset, dataset_eval: paulpacaud/rlbenchfail_test_dataset, holdout_class: slip,           seeds: [42, 123, 456], epochs: 2, batch_size: 4, grad_accum: 4, lr: 2.0e-4, lambda_contrastive: 0.1, temperature: 1.0 }
